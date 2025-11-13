@@ -1,0 +1,88 @@
+/* 1. 'Cooper Hewitt' is your default font */
+@import url('https://fonts.googleapis.com/css2?family=Cooper+Hewitt:wght@400;700&display=swap');
+
+/* 2. Define your local logo font */
+@font-face {
+  font-family: 'Brilliant';
+  src: url('./assets/brilliant.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* --- Cooper Hewitt Weights --- */
+@font-face {
+  font-family: 'Cooper Hewitt';
+  src: url('./assets/CooperHewitt-Light.otf') format('opentype');
+  font-weight: 300; /* Light */
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Cooper Hewitt';
+  src: url('./assets/CooperHewitt-Book.otf') format('opentype');
+  font-weight: 400; /* Normal / Book */
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Cooper Hewitt';
+  src: url('./assets/CooperHewitt-Medium.otf') format('opentype');
+  font-weight: 500; /* Medium */
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Cooper Hewitt';
+  src: url('./assets/CooperHewitt-Bold.otf') format('opentype');
+  font-weight: 700; /* Bold */
+  font-style: normal;
+}
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================
+   THEME COLOR VARIABLES
+   ===================================== */
+
+:root {
+  /* Light theme */
+  --color-background: #FBFBF8;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #333333;
+  --color-text-secondary: #6A737D;
+  --color-primary-accent: #0A3D62;
+  --color-secondary-accent: #C0A172;
+}
+
+.dark {
+  /* Dark theme */
+  --color-background: #121822;
+  --color-surface: #1E2A3A;
+  --color-text-primary: #E1E1E6;
+  --color-text-secondary: #8892B0;
+  --color-primary-accent: #10B981;
+  --color-secondary-accent: #BCC6D5;
+}
+
+/* =====================================
+   GLOBAL STYLES
+   ===================================== */
+
+html, body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  transition: background-color 0.5s ease, color 0.5s ease;
+  
+  font-family: 'Cooper Hewitt', 'Segoe UI', system-ui, sans-serif;
+  font-weight: 300;
+
+  /* --- THIS IS THE NEW LINE --- */
+  font-size: 15px; /* Scales all rem-based sizes down. Default is 16px. */
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  transition: color 0.3s ease, background-color 0.3s ease;
+}
