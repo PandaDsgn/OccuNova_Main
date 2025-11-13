@@ -8,14 +8,13 @@ const Navbar = ({ isDarkMode, toggleTheme }) => {
         bg-surface text-textPrimary shadow-md`}
     >
       <nav className="flex justify-between items-center px-8 py-4">
-        {/* Reduced heading size */}
+        {/* Make sure 'font-brilliant' is here */}
         <h1 className="text-2xl font-bold tracking-wide text-primaryAccent font-brilliant">
           Occunova
         </h1>
 
         {/* Right side: About + Theme Toggle */}
         <div className="flex items-center gap-6">
-          {/* Reduced text size */}
           <a
             href="#about"
             className="relative text-base font-medium group text-textSecondary hover:text-textPrimary"
@@ -37,8 +36,6 @@ const Navbar = ({ isDarkMode, toggleTheme }) => {
             />
             <div
               className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 ${
-                // --- THIS IS THE UPDATED LINE ---
-                // It now uses 'secondaryAccent' for both states
                 isDarkMode ? "bg-secondaryAccent" : "bg-secondaryAccent"
               }`}
             >

@@ -1,10 +1,15 @@
 /* 1. 'Cooper Hewitt' is your default font */
 @import url('https://fonts.googleapis.com/css2?family=Cooper+Hewitt:wght@400;700&display=swap');
 
-/* 2. Define your local logo font */
+/* 2. DEFINE YOUR LOCAL FONT (Robust Rule) */
 @font-face {
   font-family: 'Brilliant';
-  src: url('./assets/brilliant.otf') format('opentype');
+  /* This tells the browser to try and find the .woff2 file first.
+     If it can't, it will try the .otf file.
+  */
+  src: 
+       url('./assets/brilliant.woff2') format('woff2'),
+       url('./assets/brilliant.otf') format('opentype');
   font-weight: normal;
   font-style: normal;
 }
@@ -75,9 +80,7 @@ html, body {
   
   font-family: 'Cooper Hewitt', 'Segoe UI', system-ui, sans-serif;
   font-weight: 300;
-
-  /* --- THIS IS THE NEW LINE --- */
-  font-size: 15px; /* Scales all rem-based sizes down. Default is 16px. */
+  font-size: 15px;
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
