@@ -11,6 +11,7 @@ import {
   FaExternalLinkAlt,
   FaEye,
   FaClipboardCheck,
+  FaFilePdf,
 } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -23,6 +24,9 @@ import ReviewModal from "./ReviewModal";
 const YOUR_CLOUD_NAME = "dpwmdsj4r"; 
 const YOUR_UPLOAD_PRESET = "Glaucoma"; 
 // ------------------------------------------
+
+// Set the initial data to an EMPTY array
+const mockScans = [];
 
 // (StatCard component is unchanged)
 const StatCard = ({ title, value, icon, color }) => (
@@ -82,50 +86,75 @@ const uploadFileToCloudinary = async (file, publicId = null) => {
   return data.secure_url; 
 };
 
-// (generatePdf function is unchanged)
+// --- 1. Helper function to check for empty values ---
+const valOrNA = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return "N/A";
+  }
+  return value;
+};
+
+// --- 2. UPDATED PDF Generation Function ---
 const generatePdf = (scanData) => {
   const doc = new jsPDF();
   const margin = 15;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 20; // Start Y position
+
+  // --- New Header: "OCCUNOVA" ---
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("Glaucoma Scan Report", margin, 20);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  doc.text(`Patient ID: ${scanData.patientId}`, margin, 30);
-  doc.text(`Scan Date: ${scanData.scanDate}`, 120, 30);
-  
+  doc.setFontSize(22);
+  doc.text("OCCUNOVA", pageWidth / 2, currentY, { align: "center" });
+  currentY += 5;
+
+  // --- Horizontal Line ---
+  doc.setLineWidth(0.5);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 10;
+
+  // --- "Details Filled" Subtitle ---
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("Details Filled", margin, currentY);
+  currentY += 10;
+
+  // --- Section 1: Patient Information (with valOrNA) ---
   autoTable(doc, {
-    startY: 40,
+    startY: currentY, // Use dynamic Y position
     head: [['1. Patient Information', 'Details']],
     body: [
-      ['Age / Date of Birth', scanData.patientDOB],
-      ['Sex / Gender', scanData.patientSex],
-      ['Ethnicity', scanData.patientEthnicity],
-      ['Eye(s) Scanned', scanData.eyeScanned],
-      ['Reason for Visit', scanData.reasonForVisit],
-      ['Medical History', scanData.medicalHistory],
-      ['Visual Acuity', scanData.visualAcuity],
-      ['Intraocular Pressure (IOP)', scanData.iop],
+      ['Patient ID', valOrNA(scanData.patientId)],
+      ['Scan Date', valOrNA(scanData.scanDate)],
+      ['Age / Date of Birth', valOrNA(scanData.patientDOB)],
+      ['Sex / Gender', valOrNA(scanData.patientSex)],
+      ['Ethnicity', valOrNA(scanData.patientEthnicity)],
+      ['Eye(s) Scanned', valOrNA(scanData.eyeScanned)],
+      ['Reason for Visit', valOrNA(scanData.reasonForVisit)],
+      ['Medical History', valOrNA(scanData.medicalHistory)],
+      ['Visual Acuity', valOrNA(scanData.visualAcuity)],
+      ['Intraocular Pressure (IOP)', valOrNA(scanData.iop)],
     ],
     theme: 'grid',
     headStyles: { fillColor: [10, 61, 98] }, 
   });
 
+  // --- Section 2: Doctor Info (with valOrNA) ---
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 10,
     head: [['2. Doctor / Technician Information', 'Details']],
     body: [
-      ['Doctor Name / ID', scanData.doctorName],
-      ['Department / Specialty', scanData.doctorDepartment],
-      ['Contact Info', scanData.doctorContact],
-      ['Performing Technician', scanData.performingTechnician],
-      ['Imaging Equipment', scanData.deviceManufacturer],
-      ['Notes / Observations', scanData.notes],
+      ['Doctor Name / ID', valOrNA(scanData.doctorName)],
+      ['Department / Specialty', valOrNA(scanData.doctorDepartment)],
+      ['Contact Info', valOrNA(scanData.doctorContact)],
+      ['Performing Technician', valOrNA(scanData.performingTechnician)],
+      ['Imaging Equipment', valOrNA(scanData.deviceManufacturer)],
+      ['Notes / Observations', valOrNA(scanData.notes)],
     ],
     theme: 'grid',
     headStyles: { fillColor: [10, 61, 98] },
   });
 
+  // --- Section 3: Consent (with valOrNA) ---
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 10,
     head: [['3. Consent & Compliance', 'Status']],
@@ -138,13 +167,14 @@ const generatePdf = (scanData) => {
     headStyles: { fillColor: [10, 61, 98] },
   });
 
-  doc.save(`${scanData.patientId}.pdf`);
+  // --- Save the file ---
+  // Use valOrNA for the filename too, just in case
+  doc.save(`${valOrNA(scanData.patientId) || 'scan-report'}.pdf`);
 };
 
 
 const Dashboard = () => {
-  // 1. --- LOAD STATE FROM LOCALSTORAGE ---
-  // When the component loads, it tries to get saved data, or uses a default value.
+  // (State hooks and localStorage logic are unchanged)
   const [scans, setScans] = useState(
     () => JSON.parse(localStorage.getItem('glaucomaScans')) || []
   );
@@ -166,8 +196,6 @@ const Dashboard = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [selectedScan, setSelectedScan] = useState(null); 
 
-  // 2. --- SAVE STATE TO LOCALSTORAGE ---
-  // This effect runs every time any of your data changes, saving it.
   useEffect(() => {
     localStorage.setItem('glaucomaScans', JSON.stringify(scans));
     localStorage.setItem('glaucomaPendingCount', pendingCount);
@@ -176,7 +204,7 @@ const Dashboard = () => {
     localStorage.setItem('glaucomaTotalCount', totalCount);
   }, [scans, pendingCount, highRiskCount, reviewedCount, totalCount]);
 
-  // (handleUploadClick is unchanged)
+  // (handleUploadClick, handleEditClick, handleViewClick, handleReviewClick are unchanged)
   const handleUploadClick = () => {
     const today = new Date().toISOString().split("T")[0];
     setSelectedScan({
@@ -208,8 +236,6 @@ const Dashboard = () => {
     });
     setIsEditModalOpen(true);
   };
-  
-  // (handleEditClick & handleViewClick are unchanged)
   const handleEditClick = (scan) => {
     setSelectedScan({ ...scan, isNew: false });
     setIsEditModalOpen(true);
@@ -235,7 +261,8 @@ const Dashboard = () => {
       return;
     }
 
-    generatePdf(scanData);
+    // PDF is no longer generated here, it's done via the button
+    // generatePdf(scanData); 
 
     try {
       let imageUrl = savedScan.scanImageUrl; 
@@ -247,7 +274,7 @@ const Dashboard = () => {
       if (isNew) {
         setScans([finalScanData, ...scans]);
         setTotalCount(totalCount + 1);
-        setPendingCount(pendingCount + 1); // New scans are "Pending"
+        setPendingCount(pendingCount + 1);
       } else {
         setScans(
           scans.map((scan) =>
@@ -261,16 +288,15 @@ const Dashboard = () => {
 
     } catch (error) {
       console.error("Image upload failed:", error);
-      alert("PDF Downloaded. However, the image upload failed. Please try editing the scan to re-upload.");
+      alert("Error uploading image file. Please try again.");
     }
   };
 
-  // --- 3. UPDATED REVIEWED COUNT LOGIC ---
+  // (handleSaveReview is unchanged)
   const handleSaveReview = (reviewData) => {
     const oldScan = scans.find(s => s.internalId === reviewData.internalId);
     if (!oldScan) return;
 
-    // Calculate changes for stat cards
     let newPending = pendingCount;
     let newReviewed = reviewedCount;
 
@@ -289,33 +315,30 @@ const Dashboard = () => {
       newHighRisk--;
     }
 
-    // Update the states
     setPendingCount(newPending);
     setHighRiskCount(newHighRisk);
-    setReviewedCount(newReviewed); // Now updates this state
+    setReviewedCount(newReviewed);
     setScans(
       scans.map((scan) =>
         scan.internalId === reviewData.internalId ? reviewData : scan
       )
     );
     
-    // Close modal
     setIsReviewModalOpen(false);
     setSelectedScan(null);
   };
 
-  // --- 4. UPDATED DELETE LOGIC ---
+  // (handleDeleteClick is unchanged)
   const handleDeleteClick = (internalId) => {
     const scanToDelete = scans.find((scan) => scan.internalId === internalId);
     if (!scanToDelete) return;
 
-    // Also update stats on delete
     setTotalCount(totalCount - 1);
     if (scanToDelete.reviewStatus === "Pending") {
       setPendingCount(pendingCount - 1);
     }
     if (scanToDelete.reviewStatus === "Reviewed") {
-      setReviewedCount(reviewedCount - 1); // Added this
+      setReviewedCount(reviewedCount - 1);
     }
     if (scanToDelete.riskLevel === "High") {
       setHighRiskCount(highRiskCount - 1);
@@ -398,7 +421,7 @@ const Dashboard = () => {
             />
           </div>
 
-          {/* (Table is unchanged) */}
+          {/* (Patient queue table is unchanged) */}
           <div className="bg-surface shadow-md rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b dark:border-gray-700">
               <h2 className="text-xl font-bold text-textPrimary">
@@ -445,7 +468,7 @@ const Dashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap font-medium text-textPrimary">
                           {scan.patientId}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowGrap text-textSecondary">
+                        <td className="px-6 py-4 whitespace-nowrap text-textSecondary">
                           {scan.scanDate}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-textSecondary">
@@ -476,6 +499,7 @@ const Dashboard = () => {
                             }
                           />
                         </td>
+                        {/* 3. --- PDF BUTTON IS NOW HERE --- */}
                         <td className="px-6 py-4 whitespace-nowrap text-right font-medium flex justify-end items-center gap-4">
                           <button
                             onClick={() => handleViewClick(scan)}
@@ -497,6 +521,14 @@ const Dashboard = () => {
                             className="text-blue-500 hover:text-blue-700 transition-colors duration-200"
                           >
                             <FaPencilAlt />
+                          </button>
+                          {/* This new button calls generatePdf directly */}
+                          <button
+                            onClick={() => generatePdf(scan)} 
+                            title="Download PDF Report"
+                            className="text-red-500 hover:text-red-700 transition-colors duration-200"
+                          >
+                            <FaFilePdf />
                           </button>
                           <button
                             onClick={() => handleDeleteClick(scan.internalId)}
