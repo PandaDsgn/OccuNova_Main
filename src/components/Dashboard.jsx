@@ -16,10 +16,10 @@ import autoTable from "jspdf-autotable"; // <-- Import the function directly
 
 import ScanEditModal from "./ScanEditModal";
 
-// --- Get Cloudinary credentials securely ---
-const YOUR_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const YOUR_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-// ------------------------------------------------------------------------------------
+// --- ADD YOUR CLOUDINARY DETAILS HERE ---
+const YOUR_CLOUD_NAME = "dpwmdsj4r"; 
+const YOUR_UPLOAD_PRESET = "Glaucoma"; 
+// ------------------------------------------
 
 // Set the initial data to an EMPTY array
 const mockScans = [];
