@@ -10,12 +10,14 @@ import {
   FaPencilAlt,
   FaExternalLinkAlt,
   FaEye,
+  FaClipboardCheck, // 1. Import new icon
 } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 import ScanEditModal from "./ScanEditModal";
 import ScanViewModal from "./ScanViewModal"; 
+import ReviewModal from "./ReviewModal"; // 2. Import the new Review Modal
 
 // --- ADD YOUR CLOUDINARY DETAILS HERE ---
 const YOUR_CLOUD_NAME = "dpwmdsj4r"; 
@@ -37,6 +39,25 @@ const StatCard = ({ title, value, icon, color }) => (
     </div>
   </div>
 );
+
+// 3. --- ADDED Badge component back in ---
+// We need this for the new table columns
+const Badge = ({ text, color }) => {
+  const colorClasses = {
+    red: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+    green: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    blue: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    yellow: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    gray: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+  };
+  return (
+    <span
+      className={`px-3 py-1 rounded-full text-xs font-medium ${colorClasses[color]}`}
+    >
+      {text}
+    </span>
+  );
+};
 
 // (uploadFileToCloudinary function is unchanged)
 const uploadFileToCloudinary = async (file, publicId = null) => {
@@ -126,20 +147,23 @@ const generatePdf = (scanData) => {
 
 
 const Dashboard = () => {
-  // (State hooks are unchanged)
+  // (Stat hooks are unchanged)
   const [pendingCount, setPendingCount] = useState(0);
   const [highRiskCount, setHighRiskCount] = useState(0);
   const [reviewedCount, setReviewedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [scans, setScans] = useState(mockScans);
+  
+  // 4. --- UPDATED MODAL STATE ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [currentScan, setCurrentScan] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false); // New state
+  const [selectedScan, setSelectedScan] = useState(null); // Use one scan for all modals
 
-  // (handleUploadClick and handleEditClick/handleViewClick are unchanged)
+  // 5. --- UPDATED UPLOAD CLICK ---
   const handleUploadClick = () => {
     const today = new Date().toISOString().split("T")[0];
-    setCurrentScan({
+    setSelectedScan({
       internalId: crypto.randomUUID(),
       patientId: "", 
       patientDOB: "",
@@ -163,22 +187,30 @@ const Dashboard = () => {
       isNew: true,
       scanImageUrl: null,
       scanDataUrl: null,
+      reviewStatus: "Pending", // Add default review status
+      riskLevel: "Not Determined", // Add default risk level
     });
     setIsEditModalOpen(true);
   };
+  
+  // 6. --- UPDATED CLICK HANDLERS ---
   const handleEditClick = (scan) => {
-    setCurrentScan({ ...scan, isNew: false });
+    setSelectedScan({ ...scan, isNew: false });
     setIsEditModalOpen(true);
   };
   const handleViewClick = (scan) => {
-    setCurrentScan(scan);
+    setSelectedScan(scan);
     setIsViewModalOpen(true);
   };
+  // 7. --- NEW CLICK HANDLER ---
+  const handleReviewClick = (scan) => {
+    setSelectedScan(scan);
+    setIsReviewModalOpen(true);
+  };
 
-  // --- *** THIS FUNCTION IS UPDATED *** ---
+  // (handleSaveScan for EDITING is unchanged)
   const handleSaveScan = async (savedScan) => {
     const { isNew, scanFile, ...scanData } = savedScan;
-
     if (!scanData.patientId) {
       alert("Patient ID is required.");
       return;
@@ -188,29 +220,20 @@ const Dashboard = () => {
       return;
     }
 
-    // --- 1. GENERATE PDF FIRST ---
-    // This happens immediately on click, so the browser will allow the download.
     generatePdf(scanData);
 
     try {
       let imageUrl = savedScan.scanImageUrl; 
-      
-      // --- 2. UPLOAD IMAGE SECOND ---
-      // This part can now 'await' without blocking the PDF.
       if (scanFile) {
         imageUrl = await uploadFileToCloudinary(scanFile, null);
       }
+      const finalScanData = { ...scanData, scanImageUrl: imageUrl, scanDataUrl: null };
 
-      const finalScanData = { 
-        ...scanData, 
-        scanImageUrl: imageUrl, 
-        scanDataUrl: null 
-      };
-
-      // --- 3. UPDATE STATE ---
       if (isNew) {
         setScans([finalScanData, ...scans]);
         setTotalCount(totalCount + 1);
+        // New scans are "Pending" by default, so update count
+        setPendingCount(pendingCount + 1);
       } else {
         setScans(
           scans.map((scan) =>
@@ -220,37 +243,85 @@ const Dashboard = () => {
       }
       
       setIsEditModalOpen(false);
-      setCurrentScan(null);
+      setSelectedScan(null);
 
     } catch (error) {
-      // This will now only catch image upload errors
       console.error("Image upload failed:", error);
       alert("PDF Downloaded. However, the image upload failed. Please try editing the scan to re-upload.");
     }
+  };
+
+  // 8. --- NEW SAVE HANDLER for Review Modal ---
+  const handleSaveReview = (reviewData) => {
+    // Find the original scan to calculate stat changes
+    const oldScan = scans.find(s => s.internalId === reviewData.internalId);
+
+    // Calculate changes for stat cards
+    let newPending = pendingCount;
+    if (oldScan.reviewStatus === 'Pending' && reviewData.reviewStatus === 'Reviewed') {
+      newPending--;
+    } else if (oldScan.reviewStatus === 'Reviewed' && reviewData.reviewStatus === 'Pending') {
+      newPending++;
+    }
+
+    let newHighRisk = highRiskCount;
+    if (oldScan.riskLevel !== 'High Risk' && reviewData.riskLevel === 'High Risk') {
+      newHighRisk++;
+    } else if (oldScan.riskLevel === 'High Risk' && reviewData.riskLevel !== 'High Risk') {
+      newHighRisk--;
+    }
+
+    // Update the states
+    setPendingCount(newPending);
+    setHighRiskCount(newHighRisk);
+    setScans(
+      scans.map((scan) =>
+        scan.internalId === reviewData.internalId ? reviewData : scan
+      )
+    );
+    
+    // Close modal
+    setIsReviewModalOpen(false);
+    setSelectedScan(null);
   };
 
   // (handleDeleteClick is unchanged)
   const handleDeleteClick = (internalId) => {
     const scanToDelete = scans.find((scan) => scan.internalId === internalId);
     if (!scanToDelete) return;
+
+    // Also update stats on delete
     setTotalCount(totalCount - 1);
+    if (scanToDelete.reviewStatus === "Pending") {
+      setPendingCount(pendingCount - 1);
+    }
+    if (scanToDelete.riskLevel === "High Risk") {
+      setHighRiskCount(highRiskCount - 1);
+    }
+
     setScans(scans.filter((scan) => scan.internalId !== internalId));
   };
 
 
   return (
     <>
-      {/* (Modals are unchanged) */}
+      {/* 9. --- Render all three modals --- */}
       <ScanEditModal
         isOpen={isEditModalOpen}
-        scan={currentScan}
+        scan={selectedScan}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveScan}
       />
       <ScanViewModal
         isOpen={isViewModalOpen}
-        scan={currentScan}
+        scan={selectedScan}
         onClose={() => setIsViewModalOpen(false)}
+      />
+      <ReviewModal
+        isOpen={isReviewModalOpen}
+        scan={selectedScan}
+        onClose={() => setIsReviewModalOpen(false)}
+        onSave={handleSaveReview}
       />
 
       <div className="pt-20 min-h-screen">
@@ -305,7 +376,7 @@ const Dashboard = () => {
             />
           </div>
 
-          {/* (Patient queue table is unchanged) */}
+          {/* 10. --- UPDATED TABLE --- */}
           <div className="bg-surface shadow-md rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b dark:border-gray-700">
               <h2 className="text-xl font-bold text-textPrimary">
@@ -323,10 +394,14 @@ const Dashboard = () => {
                       Scan Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-textSecondary uppercase tracking-wider">
-                      Doctor
+                      Scan
+                    </th>
+                    {/* New Columns */}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-textSecondary uppercase tracking-wider">
+                      Risk Level
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-textSecondary uppercase tracking-wider">
-                      Scan
+                      Review Status
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-textSecondary uppercase tracking-wider">
                       Actions
@@ -337,7 +412,7 @@ const Dashboard = () => {
                   {scans.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="5"
+                        colSpan="6" // Updated colSpan
                         className="px-6 py-8 text-center text-textSecondary"
                       >
                         No patient scans found. Click "Upload New Scan" to begin.
@@ -353,9 +428,6 @@ const Dashboard = () => {
                           {scan.scanDate}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-textSecondary">
-                          {scan.doctorName}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-textSecondary">
                           <a
                             href={scan.scanImageUrl}
                             target="_blank"
@@ -365,6 +437,26 @@ const Dashboard = () => {
                             View Scan <FaExternalLinkAlt size={12} />
                           </a>
                         </td>
+                        {/* New Data Cells */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge
+                            text={scan.riskLevel}
+                            color={
+                              scan.riskLevel === "High" ? "red" :
+                              scan.riskLevel === "Medium" ? "yellow" :
+                              scan.riskLevel === "Low" ? "green" : "gray"
+                            }
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                           <Badge
+                            text={scan.reviewStatus}
+                            color={
+                              scan.reviewStatus === "Pending" ? "yellow" : "blue"
+                            }
+                          />
+                        </td>
+                        {/* New Action Button */}
                         <td className="px-6 py-4 whitespace-nowrap text-right font-medium flex justify-end items-center gap-4">
                           <button
                             onClick={() => handleViewClick(scan)}
@@ -374,13 +466,19 @@ const Dashboard = () => {
                             <FaEye />
                           </button>
                           <button
+                            onClick={() => handleReviewClick(scan)}
+                            title="Update Status"
+                            className="text-yellow-500 hover:text-yellow-700 transition-colors duration-200"
+                          >
+                            <FaClipboardCheck />
+                          </button>
+                          <button
                             onClick={() => handleEditClick(scan)}
                             title="Edit Scan"
                             className="text-blue-500 hover:text-blue-700 transition-colors duration-200"
                           >
                             <FaPencilAlt />
                           </button>
-                          
                           <button
                             onClick={() => handleDeleteClick(scan.internalId)}
                             title="Delete Scan"
