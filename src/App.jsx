@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Routes, Route } from "react-router-dom"; // 1. Import Routes and Route
-import Navbar from "./components/Navbar";
-import Home from "./components/Home"; // 2. Import Home
-import Dashboard from "./components/Dashboard"; // 3. Import Dashboard
+import { Routes, Route } from "react-router-dom";
+// --- THIS IS THE FIXED LINE ---
+import Navbar from "./components/navbar"; // Changed "Navbar" to "navbar"
+// ---------------------------------
+import Home from "./components/Home";
+import Dashboard from "./components/Dashboard";
 
 function App() {
   // All your theme state logic remains unchanged
