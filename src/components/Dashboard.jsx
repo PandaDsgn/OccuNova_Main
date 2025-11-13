@@ -9,12 +9,11 @@ import {
   FaTrash,
   FaPencilAlt,
   FaExternalLinkAlt,
+  FaEye, // 1. Import the Eye icon
 } from "react-icons/fa";
-// 1. Import PDF generation libraries (CHANGED)
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; // <-- Import the function directly
 
 import ScanEditModal from "./ScanEditModal";
+import ScanViewModal from "./ScanViewModal"; // 2. Import the new View Modal
 
 // --- ADD YOUR CLOUDINARY DETAILS HERE ---
 const YOUR_CLOUD_NAME = "dpwmdsj4r"; 
@@ -64,86 +63,21 @@ const uploadFileToCloudinary = async (file, publicId = null) => {
   return data.secure_url; 
 };
 
-// 2. NEW: Function to generate the structured PDF (CHANGED)
-const generatePdf = (scanData) => {
-  const doc = new jsPDF();
-  const margin = 15;
-
-  // --- PDF Header ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("Overview", margin, 20);
-
-  // --- Patient ID & Date ---
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  doc.text(`Patient ID: ${scanData.patientId}`, margin, 30);
-  doc.text(`Scan Date: ${scanData.scanDate}`, 120, 30);
-  
-  // --- Section 1: Patient Information ---
-  // --- All calls are now autoTable(doc, ...) ---
-  autoTable(doc, {
-    startY: 40,
-    head: [['1. Patient Information', 'Details']],
-    body: [
-      ['Age / Date of Birth', scanData.patientDOB],
-      ['Sex / Gender', scanData.patientSex],
-      ['Ethnicity', scanData.patientEthnicity],
-      ['Eye(s) Scanned', scanData.eyeScanned],
-      ['Reason for Visit', scanData.reasonForVisit],
-      ['Medical History', scanData.medicalHistory],
-      ['Visual Acuity', scanData.visualAcuity],
-      ['Intraocular Pressure (IOP)', scanData.iop],
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [10, 61, 98] }, // Your Deep Sapphire color
-  });
-
-  // --- Section 2: Doctor / Technician Information ---
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['2. Doctor / Technician Information', 'Details']],
-    body: [
-      ['Doctor Name / ID', scanData.doctorName],
-      ['Department / Specialty', scanData.doctorDepartment],
-      ['Contact Info', scanData.doctorContact],
-      ['Performing Technician', scanData.performingTechnician],
-      ['Imaging Equipment', scanData.deviceManufacturer],
-      ['Notes / Observations', scanData.notes],
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [10, 61, 98] },
-  });
-
-  // --- Section 3: Consent & Compliance ---
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 10,
-    head: [['3. Consent & Compliance', 'Status']],
-    body: [
-      ['Patient Consent Confirmed', scanData.consentConfirmed ? 'Yes' : 'No'],
-      ['HIPAA/GDPR Compliance', scanData.hipaaCompliance ? 'Yes' : 'No'],
-      ['Data Anonymization', scanData.anonymizationConfirmed ? 'Yes' : 'No'],
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [10, 61, 98] },
-  });
-
-  // --- Save the file ---
-  doc.save(`${scanData.patientId}.pdf`);
-};
-
 
 const Dashboard = () => {
-  // (All state hooks are unchanged)
+  // (State hooks are unchanged)
   const [pendingCount, setPendingCount] = useState(0);
   const [highRiskCount, setHighRiskCount] = useState(0);
   const [reviewedCount, setReviewedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [scans, setScans] = useState(mockScans);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // State to manage modals
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false); // 3. Add state for View Modal
   const [currentScan, setCurrentScan] = useState(null);
 
-  // (handleUploadClick and handleEditClick are unchanged)
+  // (handleUploadClick is unchanged)
   const handleUploadClick = () => {
     const today = new Date().toISOString().split("T")[0];
     setCurrentScan({
@@ -171,32 +105,45 @@ const Dashboard = () => {
       scanImageUrl: null,
       scanDataUrl: null,
     });
-    setIsModalOpen(true);
+    setIsEditModalOpen(true); // Open the EDIT modal
   };
+  
+  // 4. Update Edit Click
   const handleEditClick = (scan) => {
     setCurrentScan({ ...scan, isNew: false });
+    setIsEditModalOpen(true); // Open the EDIT modal
   };
 
-  // (handleSaveScan is unchanged)
+  // 5. Add View Click handler
+  const handleViewClick = (scan) => {
+    setCurrentScan(scan);
+    setIsViewModalOpen(true); // Open the VIEW modal
+  };
+
+  // 6. --- THIS FUNCTION IS UPDATED ---
   const handleSaveScan = async (savedScan) => {
     const { isNew, scanFile, ...scanData } = savedScan;
 
-    if (isNew && !scanFile) {
-      alert("Please select a scan file to upload.");
-      return;
-    }
     if (!scanData.patientId) {
       alert("Patient ID is required.");
       return;
     }
+    
+    // Check if file is required (only for new scans)
+    if (isNew && !scanFile) {
+      alert("Please select a scan file to upload.");
+      return;
+    }
 
     try {
-      let imageUrl = scanData.scanImageUrl;
+      let imageUrl = savedScan.scanImageUrl; // Keep old URL by default
       
+      // Only upload a new image if a new file was selected
       if (scanFile) {
         imageUrl = await uploadFileToCloudinary(scanFile, null);
       }
 
+      // Generate and download the PDF
       generatePdf(scanData);
 
       const finalScanData = { 
@@ -205,10 +152,13 @@ const Dashboard = () => {
         scanDataUrl: null 
       };
 
+      // --- 7. ADDED/FIXED EDIT LOGIC ---
       if (isNew) {
+        // This is a NEW scan, add it to the list
         setScans([finalScanData, ...scans]);
         setTotalCount(totalCount + 1);
       } else {
+        // This is an EDIT, update the existing scan in the list
         setScans(
           scans.map((scan) =>
             scan.internalId === finalScanData.internalId ? finalScanData : scan
@@ -216,7 +166,7 @@ const Dashboard = () => {
         );
       }
       
-      setIsModalOpen(false);
+      setIsEditModalOpen(false); // Close the EDIT modal
       setCurrentScan(null);
 
     } catch (error) {
@@ -233,13 +183,79 @@ const Dashboard = () => {
     setScans(scans.filter((scan) => scan.internalId !== internalId));
   };
 
+  // (generatePdf function is unchanged, moving it here)
+  const generatePdf = (scanData) => {
+    const doc = new jsPDF();
+    const margin = 15;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("Glaucoma Scan Report", margin, 20);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text(`Patient ID: ${scanData.patientId}`, margin, 30);
+    doc.text(`Scan Date: ${scanData.scanDate}`, 120, 30);
+    
+    autoTable(doc, {
+      startY: 40,
+      head: [['1. Patient Information', 'Details']],
+      body: [
+        ['Age / Date of Birth', scanData.patientDOB],
+        ['Sex / Gender', scanData.patientSex],
+        ['Ethnicity', scanData.patientEthnicity],
+        ['Eye(s) Scanned', scanData.eyeScanned],
+        ['Reason for Visit', scanData.reasonForVisit],
+        ['Medical History', scanData.medicalHistory],
+        ['Visual Acuity', scanData.visualAcuity],
+        ['Intraocular Pressure (IOP)', scanData.iop],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [10, 61, 98] }, 
+    });
+  
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [['2. Doctor / Technician Information', 'Details']],
+      body: [
+        ['Doctor Name / ID', scanData.doctorName],
+        ['Department / Specialty', scanData.doctorDepartment],
+        ['Contact Info', scanData.doctorContact],
+        ['Performing Technician', scanData.performingTechnician],
+        ['Imaging Equipment', scanData.deviceManufacturer],
+        ['Notes / Observations', scanData.notes],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [10, 61, 98] },
+    });
+  
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [['3. Consent & Compliance', 'Status']],
+      body: [
+        ['Patient Consent Confirmed', scanData.consentConfirmed ? 'Yes' : 'No'],
+        ['HIPAA/GDPR Compliance', scanData.hipaaCompliance ? 'Yes' : 'No'],
+        ['Data Anonymization', scanData.anonymizationConfirmed ? 'Yes' : 'No'],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [10, 61, 98] },
+    });
+  
+    doc.save(`${scanData.patientId}.pdf`);
+  };
+
   return (
     <>
+      {/* 8. Render BOTH modals */}
       <ScanEditModal
-        isOpen={isModalOpen}
+        isOpen={isEditModalOpen}
         scan={currentScan}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveScan}
+      />
+      
+      <ScanViewModal
+        isOpen={isViewModalOpen}
+        scan={currentScan}
+        onClose={() => setIsViewModalOpen(false)}
       />
 
       <div className="pt-20 min-h-screen">
@@ -247,7 +263,7 @@ const Dashboard = () => {
           {/* (Header is unchanged) */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <h1 className="text-2xl font-bold text-textPrimary">
-              Dashboard
+              Doctor's Dashboard
             </h1>
             <div className="flex items-center gap-6">
               <Link
@@ -354,7 +370,15 @@ const Dashboard = () => {
                             View Scan <FaExternalLinkAlt size={12} />
                           </a>
                         </td>
+                        {/* 9. ADDED THE VIEW BUTTON */}
                         <td className="px-6 py-4 whitespace-nowrap text-right font-medium flex justify-end items-center gap-4">
+                          <button
+                            onClick={() => handleViewClick(scan)}
+                            title="View Details"
+                            className="text-green-500 hover:text-green-700 transition-colors duration-200"
+                          >
+                            <FaEye />
+                          </button>
                           <button
                             onClick={() => handleEditClick(scan)}
                             title="Edit Scan"
